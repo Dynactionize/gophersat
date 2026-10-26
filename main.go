@@ -7,10 +7,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/crillab/gophersat/bf"
-	"github.com/crillab/gophersat/explain"
-	"github.com/crillab/gophersat/maxsat"
-	"github.com/crillab/gophersat/solver"
+	"github.com/dynactionize/gophersat/bf"
+	"github.com/dynactionize/gophersat/explain"
+	"github.com/dynactionize/gophersat/maxsat"
+	"github.com/dynactionize/gophersat/solver"
 )
 
 const helpString = "This is gophersat version 1.4.1, a SAT and Pseudo-Boolean solver by Fabien Delorme.\n"

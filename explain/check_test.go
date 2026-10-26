@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/crillab/gophersat/solver"
+	"github.com/dynactionize/gophersat/solver"
 )
 
 func TestUnsat(t *testing.T) {

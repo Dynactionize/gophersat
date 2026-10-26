@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/crillab/gophersat/solver"
+	"github.com/dynactionize/gophersat/solver"
 )
 
 func TestTrivialMUS(t *testing.T) {
