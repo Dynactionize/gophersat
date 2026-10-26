@@ -95,6 +95,12 @@ func (q *queue) insert(n int) {
 	for i := len(q.indices); i <= n; i++ {
 		q.indices = append(q.indices, -1)
 	}
+	// [dynactionize fork fix #3] duplicate insertion used to append a second
+	// copy of n and clobber indices[n], silently corrupting the heap. Make
+	// insert idempotent so no caller can corrupt the invariant.
+	if q.indices[n] >= 0 {
+		return
+	}
 	q.indices[n] = len(q.content)
 	q.content = append(q.content, n)
 	q.percolateUp(q.indices[n])

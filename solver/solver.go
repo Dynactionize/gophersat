@@ -84,6 +84,12 @@ type Solver struct {
 	trailBuf        []int   // A buffer while cleaning bindings
 	pbSetBuf        []int   // A buffer to reduce allocation when performing cutting planes
 	pbSetBuf2       []int   // A buffer to reduce allocation when performing cutting planes
+	// rootUnits are the problem's unit literals (facts). They are bound at
+	// level 1 at construction and are NOT stored as clauses, so Assume()'s
+	// cleanupBindings(0) would otherwise erase them irrecoverably after the
+	// first call — making later answers unsound. Assume() rebinds them.
+	// [dynactionize fork fix #1]
+	rootUnits []Lit
 }
 
 // New makes a solver, given a number of variables and a set of clauses.
@@ -131,6 +137,9 @@ func New(problem *Problem) *Solver {
 		}
 		s.trail[i] = lit
 	}
+	// Keep the problem's unit facts so Assume() can rebind them after it
+	// resets all level>=1 bindings. [dynactionize fork fix #1]
+	s.rootUnits = append([]Lit(nil), problem.Units...)
 	return s
 }
 
@@ -308,7 +317,13 @@ func (s *Solver) cleanupBindings(lvl decLevel) {
 			}
 			s.trail = s.trail[:i]
 	*/
-	toInsert := s.trailBuf[:0] // make([]int, 0, len(s.trail)-i)
+	// [dynactionize fork fix #2] upstream inserted every var TWICE (once
+	// here, once via a toInsert replay loop). queue.insert is not idempotent:
+	// duplicates leave stale entries in the heap whose indices get clobbered,
+	// after which contains() can answer true for a var no longer really
+	// queued — cleanupBindings then skips reinserting it, chooseLit never
+	// sees it, and search declares Sat with unbound variables (models that
+	// falsify clauses). Insert exactly once.
 	for j := i; j < len(s.trail); j++ {
 		lit2 := s.trail[j]
 		v := lit2.Var()
@@ -319,14 +334,10 @@ func (s *Solver) cleanupBindings(lvl decLevel) {
 		}
 		s.polarity[v] = lit2.IsPositive()
 		if !s.varQueue.contains(int(v)) {
-			toInsert = append(toInsert, int(v))
 			s.varQueue.insert(int(v))
 		}
 	}
 	s.trail = s.trail[:i]
-	for i := len(toInsert) - 1; i >= 0; i-- {
-		s.varQueue.insert(toInsert[i])
-	}
 	/*for i := len(s.trail) - 1; i >= 0; i-- {
 		lit := s.trail[i]
 		v := lit.Var()
@@ -575,10 +586,33 @@ func (s *Solver) Assume(lits []Lit) Status {
 	s.trail = s.trail[:0]
 	s.assumptions = make([]bool, s.nbVars)
 
-	for _, lit := range lits {
+	// Rebind the problem's unit facts erased by cleanupBindings(0): they are
+	// not stored as clauses, so without this the formula silently loses its
+	// units after the first Assume call and later answers can be unsound
+	// (wrong SAT and models violating the unit clauses).
+	// [dynactionize fork fix #1]
+	for _, lit := range s.rootUnits {
+		if s.model[lit.Var()] == 0 {
+			s.addLearnedUnit(lit)
+			s.trail = append(s.trail, lit)
+		}
+	}
 
+	for _, lit := range lits {
+		v := lit.Var()
+		if s.model[v] != 0 {
+			if s.litStatus(lit) == Unsat {
+				// The assumption contradicts a root unit (or an earlier
+				// assumption): UNSAT under these assumptions, without
+				// clobbering the existing binding.
+				s.status = Unsat
+				return s.status
+			}
+			s.assumptions[v] = true
+			continue // already bound to the assumed value
+		}
 		s.addLearnedUnit(lit)
-		s.assumptions[lit.Var()] = true
+		s.assumptions[v] = true
 		s.trail = append(s.trail, lit)
 	}
 	s.status = Indet
