@@ -82,9 +82,12 @@ func (pb *Problem) costFuncString() string {
 		if pb.minWeights != nil {
 			w = pb.minWeights[i]
 		}
-		sign := ""
-		if w >= 0 && i != 0 { // No plus sign for the first term or for negative terms.
-			sign = "+"
+		sign := "" // No separator before the first term
+		if i != 0 {
+			sign = " " // Terms must be separated by spaces to be parsed back
+			if w >= 0 {
+				sign = " +" // No plus sign for negative terms
+			}
 		}
 		val := lit.Int()
 		neg := ""
