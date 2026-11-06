@@ -117,10 +117,10 @@ var ErrNotUnsat = fmt.Errorf("problem is not UNSAT")
 func (pb *Problem) UnsatSubset() (subset *Problem, err error) {
 	solverPb := solver.ParseSlice(pb.Clauses)
 	if solverPb.Status == solver.Unsat {
-		// Problem is trivially UNSAT
-		// Make a copy so that pb and pb2 are not the same value.
-		pb2 := *pb
-		return &pb2, nil
+		// Problem is trivially UNSAT.
+		// Return a deep copy: callers (e.g. MUSDeletion) modify the subset's
+		// clauses, which must not alter pb.
+		return pb.clone(), nil
 	}
 	s := solver.New(solver.ParseSlice(pb.Clauses))
 	s.Certified = true
