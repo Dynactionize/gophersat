@@ -55,8 +55,8 @@ func TestParseWCNFValidEdgeCases(t *testing.T) {
 		wcnf string
 		want int // optimal cost, -1 for UNSAT
 	}{
-		{"p wcnf 5 1 10\n10 1 0\n", 0},                 // header announces more vars than used
-		{"p wcnf 3 2\n1 1 0\n1 -1 0\n", 1},             // no top weight: all soft
+		{"p wcnf 5 1 10\n10 1 0\n", 0},                  // header announces more vars than used
+		{"p wcnf 3 2\n1 1 0\n1 -1 0\n", 1},              // no top weight: all soft
 		{"p wcnf 2 2 10\n   \n10 1 0\n\t3 -1 0  \n", 3}, // blank and indented lines
 		{"c x\np wcnf 2 3 10\n10 1 0\n10 -1 0\n1 2 0\n", -1},
 		{"p wcnf 2 1 10\n4 0\n", 4}, // empty soft clause: always violated
