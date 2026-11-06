@@ -306,7 +306,13 @@ func (pb *Problem) simplifyCard() {
 }
 
 func (pb *Problem) simplifyPB() {
+	if pb.Status == Unsat {
+		return
+	}
 	pb.replicateUnits()
+	if pb.Status == Unsat {
+		return
+	}
 	modified := true
 	for modified {
 		modified = false
@@ -386,13 +392,19 @@ func (pb *Problem) addUnits(c *Clause, nbLits int) {
 	}
 }
 
+// replicateUnits binds the units in the model. If two units contradict each
+// other, the problem is UNSAT.
 func (pb *Problem) replicateUnits() {
 	for _, unit := range pb.Units {
 		v := unit.Var()
-		if unit.IsPositive() {
-			pb.Model[v] = 1
-		} else {
-			pb.Model[v] = -1
+		val := decLevel(1)
+		if !unit.IsPositive() {
+			val = -1
 		}
+		if pb.Model[v] == -val {
+			pb.Status = Unsat
+			return
+		}
+		pb.Model[v] = val
 	}
 }
