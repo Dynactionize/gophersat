@@ -83,6 +83,19 @@ func NewLearnedClause(lits []Lit) *Clause {
 	return &Clause{lits: lits, lbdValue: learnedMask}
 }
 
+// clone returns a deep copy of c.
+func (c *Clause) clone() *Clause {
+	c2 := *c
+	c2.lits = append([]Lit(nil), c.lits...)
+	if c.pbData != nil {
+		c2.pbData = &pbData{
+			weights: append([]int(nil), c.pbData.weights...),
+			watched: make([]bool, len(c.pbData.watched)), // watches belong to a solver
+		}
+	}
+	return &c2
+}
+
 // Cardinality returns the minimum number of literals that must be true to satisfy the clause.
 func (c *Clause) Cardinality() int {
 	if c.Learned() {

@@ -115,7 +115,7 @@ func New(problem *Problem) *Solver {
 		nbVars:          nbVars,
 		status:          problem.Status,
 		trail:           make([]Lit, len(problem.Units), trailCap),
-		model:           problem.Model,
+		model:           append(Model(nil), problem.Model...), // The solver must not modify the problem.
 		activity:        make([]float64, nbVars),
 		polarity:        make([]bool, nbVars),
 		assumptions:     make([]bool, nbVars),
@@ -132,7 +132,13 @@ func New(problem *Problem) *Solver {
 	}
 	s.resetOptimPolarity()
 	s.initOptimActivity()
-	s.initWatcherList(problem.Clauses)
+	// Clauses are modified while solving (lit order, PB watch flags), so the
+	// solver works on copies: the same Problem can then build several solvers.
+	clauses := make([]*Clause, len(problem.Clauses))
+	for i, c := range problem.Clauses {
+		clauses[i] = c.clone()
+	}
+	s.initWatcherList(clauses)
 	s.varQueue = newQueue(s.activity)
 	for i, lit := range problem.Units {
 		if lit.IsPositive() {
