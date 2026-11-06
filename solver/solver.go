@@ -90,6 +90,10 @@ type Solver struct {
 	// first call — making later answers unsound. Assume() rebinds them.
 	// [dynactionize fork fix #1]
 	rootUnits []Lit
+	// rootUnsat is true iff the problem itself was proven UNSAT before the
+	// solver was built. Such a solver has no internal state at all, and
+	// no set of assumptions can make it satisfiable.
+	rootUnsat bool
 }
 
 // New makes a solver, given a number of variables and a set of clauses.
@@ -97,7 +101,7 @@ type Solver struct {
 // the biggest variable in clauses should be >= nbVars.
 func New(problem *Problem) *Solver {
 	if problem.Status == Unsat {
-		return &Solver{status: Unsat}
+		return &Solver{status: Unsat, rootUnsat: true}
 	}
 	nbVars := problem.NbVars
 
@@ -582,6 +586,10 @@ func (s *Solver) Solve() Status {
 // Assume adds unit literals to the solver.
 // This is useful when calling the solver several times, e.g to keep it "hot" while removing clauses.
 func (s *Solver) Assume(lits []Lit) Status {
+	if s.rootUnsat {
+		s.status = Unsat
+		return s.status
+	}
 	s.cleanupBindings(0)
 	s.trail = s.trail[:0]
 	s.assumptions = make([]bool, s.nbVars)
