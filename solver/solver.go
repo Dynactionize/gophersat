@@ -93,8 +93,10 @@ type Solver struct {
 	// rootUnsat is true iff the problem itself was proven UNSAT before the
 	// solver was built. Such a solver has no internal state at all, and
 	// no set of assumptions can make it satisfiable.
-	rootUnsat bool
-	learnBuf  []Lit // Buffer for lits in learnClause, to reduce allocations. Per solver, so that solvers can run concurrently.
+	rootUnsat  bool
+	learnBuf   []Lit  // Buffer for lits in learnClause, to reduce allocations. Per solver, so that solvers can run concurrently.
+	metBuf     []bool // Buffer for the met/metLvl flags of learnClause; all false between conflicts
+	metTouched []Var  // Vars whose flags in metBuf were set during the current conflict analysis
 }
 
 // New makes a solver, given a number of variables and a set of clauses.

@@ -25,6 +25,7 @@ func (s *Solver) addClauseLits(confl *Clause, lvl decLevel, met, metLvl []bool, 
 			continue
 		}
 		met[v] = true
+		s.metTouched = append(s.metTouched, v)
 		s.varBumpActivity(v)
 		if abs(s.model[v]) == lvl {
 			metLvl[v] = true
@@ -48,16 +49,29 @@ func (s *Solver) learnClause(confl *Clause, lvl decLevel) (learned *Clause, unit
 	lits := s.learnBuf[:1] // Not 0: make room for asserting literal
 	// Keep the (possibly grown) buffer for the next conflict.
 	defer func() { s.learnBuf = lits[:0] }()
-	buf := make([]bool, s.nbVars*2) // Buffer for met and metLvl; reduces allocs/deallocs
-	met := buf[:s.nbVars]           // List of all vars already met
-	metLvl := buf[s.nbVars:]        // List of all vars from current level to deal with
+	// met and metLvl live in a per-solver buffer: allocating and clearing
+	// 2*nbVars bools on every conflict dominated the cost of conflict
+	// analysis on large problems. Only the entries set here are cleared.
+	if len(s.metBuf) < 2*s.nbVars {
+		s.metBuf = make([]bool, 2*s.nbVars)
+	}
+	met := s.metBuf[:s.nbVars]                // List of all vars already met
+	metLvl := s.metBuf[s.nbVars : 2*s.nbVars] // List of all vars from current level to deal with
+	s.metTouched = s.metTouched[:0]           // Vars whose met (and maybe metLvl) entry is set
+	defer func() {
+		for _, v := range s.metTouched {
+			met[v] = false
+			metLvl[v] = false
+		}
+	}()
 	// nbLvl is the nb of vars in lvl currently used
 	nbLvl := s.addClauseLits(confl, lvl, met, metLvl, &lits)
 	ptr := len(s.trail) - 1 // Pointer in propagation trail
 	for nbLvl > 1 {         // We will stop once we only have one lit from current level.
 		for !metLvl[s.trail[ptr].Var()] {
-			if abs(s.model[s.trail[ptr].Var()]) == lvl { // This var was deduced afterwards and was not a reason for the conflict
-				met[s.trail[ptr].Var()] = true
+			if v := s.trail[ptr].Var(); abs(s.model[v]) == lvl { // This var was deduced afterwards and was not a reason for the conflict
+				met[v] = true
+				s.metTouched = append(s.metTouched, v)
 			}
 			ptr--
 		}
@@ -77,6 +91,7 @@ func (s *Solver) learnClause(confl *Clause, lvl decLevel) (learned *Clause, unit
 						continue
 					}
 					met[v2] = true
+					s.metTouched = append(s.metTouched, v2)
 					s.varBumpActivity(v2)
 					if abs(s.model[v2]) == lvl {
 						metLvl[v2] = true
