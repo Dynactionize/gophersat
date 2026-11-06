@@ -194,6 +194,7 @@ func (pb *Problem) DetectAtMostOne() {
 			continue
 		}
 		constr := []Lit{lit.Negation()}
+		var used []int // binary clauses subsumed by constr, if it is kept
 		for j, other := range others {
 			if considered[other] {
 				continue
@@ -215,7 +216,7 @@ func (pb *Problem) DetectAtMostOne() {
 			}
 			if ok { // other was found in a binary clause with each literal in constr
 				constr = append(constr, other)
-				toRemove = append(toRemove, indexes[lit][j])
+				used = append(used, indexes[lit][j])
 			}
 		}
 		if len(constr) > 2 { // We detected a stronger cardinality constraint
@@ -223,26 +224,27 @@ func (pb *Problem) DetectAtMostOne() {
 				considered[lit.Negation()] = true
 			}
 			pb.Clauses = append(pb.Clauses, NewCardClause(constr, len(constr)-1))
+			// Only now are the binary clauses implied by a kept constraint.
+			toRemove = append(toRemove, used...)
 		}
 	}
 	pb.removeBinaries(toRemove)
 }
 
-// removeBinaries removes the binary clauses that were used to build the
-// hidden cardinality constraint whose lits are given as a parameter.
+// removeBinaries removes the clauses whose indexes are given as a parameter
+// (binary clauses subsumed by a detected cardinality constraint).
+// toRemove may be unsorted and contain duplicates.
 func (pb *Problem) removeBinaries(toRemove []int) {
 	if len(toRemove) == 0 {
 		return
 	}
-	newClauses := make([]*Clause, 0, len(pb.Clauses)-len(toRemove))
-	i := 0
+	remove := make([]bool, len(pb.Clauses))
+	for _, idx := range toRemove {
+		remove[idx] = true
+	}
+	newClauses := make([]*Clause, 0, len(pb.Clauses))
 	for j, c := range pb.Clauses {
-		if j == toRemove[i] {
-			i++
-			if i == len(toRemove) {
-				break
-			}
-		} else {
+		if !remove[j] {
 			newClauses = append(newClauses, c)
 		}
 	}
