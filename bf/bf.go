@@ -215,8 +215,8 @@ func (a and) nnf() Formula {
 	if len(res) == 1 {
 		return res[0]
 	}
-	if len(res) == 0 {
-		return False
+	if len(res) == 0 { // Empty conjunction: all (zero) subformulas are true
+		return True
 	}
 	return res
 }
@@ -267,8 +267,8 @@ func (o or) nnf() Formula {
 	if len(res) == 1 {
 		return res[0]
 	}
-	if len(res) == 0 {
-		return True
+	if len(res) == 0 { // Empty disjunction: no subformula is true
+		return False
 	}
 	return res
 }
