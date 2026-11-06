@@ -36,15 +36,18 @@ func (s *Solver) addClauseLits(confl *Clause, lvl decLevel, met, metLvl []bool, 
 	return nbLvl
 }
 
-var bufLits = make([]Lit, 10_000) // Buffer for lits in learnClause. Used to reduce allocations.
-
 // learnClause creates a conflict clause and returns either:
 // - the clause itself, if its len is at least 2,
 // - a nil clause and a unit literal, if its len is exactly 1,
 // - a nil clause and -1, if the empty clause was learned.
 func (s *Solver) learnClause(confl *Clause, lvl decLevel) (learned *Clause, unit Lit) {
 	s.clauseBumpActivity(confl)
-	lits := bufLits[:1]             // Not 0: make room for asserting literal
+	if cap(s.learnBuf) == 0 {
+		s.learnBuf = make([]Lit, 0, 64)
+	}
+	lits := s.learnBuf[:1] // Not 0: make room for asserting literal
+	// Keep the (possibly grown) buffer for the next conflict.
+	defer func() { s.learnBuf = lits[:0] }()
 	buf := make([]bool, s.nbVars*2) // Buffer for met and metLvl; reduces allocs/deallocs
 	met := buf[:s.nbVars]           // List of all vars already met
 	metLvl := buf[s.nbVars:]        // List of all vars from current level to deal with

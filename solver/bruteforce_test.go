@@ -62,17 +62,23 @@ func bfCount(n int, cs []bfConstr, fixed map[int]bool) int {
 	return nb
 }
 
+// holdsModel evaluates c on a model given as one bool per var.
+func (c bfConstr) holdsModel(m []bool) bool {
+	s := 0
+	for i, l := range c.lits {
+		v := max(l, -l)
+		if (l > 0) == m[v-1] {
+			s += c.ws[i]
+		}
+	}
+	return s >= c.k
+}
+
 // checkModel returns a description of the first violated constraint or
-// assumption, or "" if m satisfies everything.
+// assumption, or "" if m satisfies everything. It works for any nb of vars.
 func checkModel(n int, cs []bfConstr, fixed map[int]bool, m []bool) string {
 	if len(m) < n {
 		return fmt.Sprintf("model has %d vars, want %d", len(m), n)
-	}
-	var a uint64
-	for i := 0; i < n; i++ {
-		if m[i] {
-			a |= 1 << uint(i)
-		}
 	}
 	for v, b := range fixed {
 		if m[v-1] != b {
@@ -80,7 +86,7 @@ func checkModel(n int, cs []bfConstr, fixed map[int]bool, m []bool) string {
 		}
 	}
 	for _, c := range cs {
-		if !c.holds(a) {
+		if !c.holdsModel(m) {
 			return fmt.Sprintf("model violates %v", c)
 		}
 	}

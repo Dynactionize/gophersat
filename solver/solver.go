@@ -94,6 +94,7 @@ type Solver struct {
 	// solver was built. Such a solver has no internal state at all, and
 	// no set of assumptions can make it satisfiable.
 	rootUnsat bool
+	learnBuf  []Lit // Buffer for lits in learnClause, to reduce allocations. Per solver, so that solvers can run concurrently.
 }
 
 // New makes a solver, given a number of variables and a set of clauses.
