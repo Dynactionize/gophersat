@@ -38,7 +38,7 @@ func TestAppendClauseRandomVsBruteForce(t *testing.T) {
 	if testing.Short() {
 		iters = 200
 	}
-	for _, cp := range []bool{false} {
+	for _, cp := range []bool{false, true} {
 		r := rand.New(rand.NewSource(6))
 		for it := 0; it < iters; it++ {
 			n := r.Intn(8) + 3

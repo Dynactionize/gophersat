@@ -87,6 +87,19 @@ func (s *Solver) slack(pb *pbSet, lvl decLevel) int {
 	return res
 }
 
+// unsatisfiable returns true iff pb cannot be satisfied whatever the
+// assignment, i.e. iff the sum of its weights is smaller than its cardinality.
+func (pb *pbSet) unsatisfiable() bool {
+	sum := 0
+	for _, w := range pb.weights {
+		sum += abs(w)
+		if sum >= pb.card {
+			return false
+		}
+	}
+	return sum < pb.card
+}
+
 // falsifies returns true iff lit's negation appears in pb.
 // Only then should clashes happen.
 func (pb *pbSet) falsifies(lit Lit) bool {
@@ -125,13 +138,18 @@ func (s *Solver) cuttingPlanes(confl *Clause, lvl decLevel) (learned *Clause, pr
 			lit = s.trail[ptr]
 		}
 		v := lit.Var()
-		s.varBumpActivity(v) // RoundingSAT's strategy: eliminated variables are bumped twice
-		pb.roundToOne(s, v)
 		reason := s.reason[v]
 		if reason == nil {
-			lvl--
-			continue
+			// lit is the decision of its level. Since we walk the trail
+			// backwards, it is the only lit of that level falsified by pb:
+			// pb is asserting at that level, stop resolving. (Resolving it
+			// used to decrement lvl without a reason and could end in a
+			// wrong "top-level conflict", i.e. a wrong UNSAT.)
+			lvl = abs(s.model[v])
+			break
 		}
+		s.varBumpActivity(v) // RoundingSAT's strategy: eliminated variables are bumped twice
+		pb.roundToOne(s, v)
 		for _, lit := range reason.lits {
 			seen[lit.Var()] = true
 		}
@@ -139,6 +157,13 @@ func (s *Solver) cuttingPlanes(confl *Clause, lvl decLevel) (learned *Clause, pr
 		pb2 := s.pbSet(reason, s.pbSetBuf2)
 		pb2.roundToOne(s, v)
 		pb.clash(pb2)
+		if pb.unsatisfiable() {
+			// The derived constraint cannot be satisfied by any assignment
+			// (e.g. "x2 >= 2"): the problem is UNSAT. Without this check, the
+			// loop below would look for a falsified lit that does not exist
+			// and walk past the start of the trail.
+			return nil, nil, -1
+		}
 	}
 	unit := pb.onlyFalsified(s, ptr, lvl).Negation()
 	btLvl := pb.backtrackLevel(s, unit)
