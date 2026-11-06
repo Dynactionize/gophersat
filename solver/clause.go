@@ -296,9 +296,10 @@ func (c *Clause) simplifyPB(copyLits bool) (units []Lit, c2 *Clause, ok bool) {
 		newLits = append([]Lit(nil), newLits...)
 		newWeights = append([]int(nil), newWeights...)
 	}
-	// saturate weights so that none is higher than card
-	i = 0
-	for newWeights[i] > card {
+	// saturate weights so that none is higher than card (weights are sorted
+	// in decreasing order). The loop used to never advance, so only the
+	// first weight was saturated.
+	for i := 0; i < len(newWeights) && newWeights[i] > card; i++ {
 		newWeights[i] = card
 	}
 	return units, NewPBClause(newLits, newWeights, card), true

@@ -43,3 +43,19 @@ func TestSimplifyPBReturnsIndependentClause(t *testing.T) {
 		t.Fatalf("modifying the simplified clause changed the original: %s -> %s", before, c.PBString())
 	}
 }
+
+// SimplifyPB's saturation loop never advanced, so only the first weight
+// above the cardinality was lowered.
+func TestSimplifyPBSaturatesAllWeights(t *testing.T) {
+	c := NewPBClause(IntsToLits(1, 2, 3, 4), []int{5, 4, 1, 1}, 3)
+	units, c2, ok := c.SimplifyPB()
+	if !ok || len(units) != 0 || c2 == nil {
+		t.Fatalf("SimplifyPB: units=%v c2=%v ok=%v", units, c2, ok)
+	}
+	if got := c2.pbData.weights; len(got) != 4 || got[0] != 3 || got[1] != 3 || got[2] != 1 || got[3] != 1 {
+		t.Fatalf("weights = %v, want [3 3 1 1]", got)
+	}
+	if c2.Cardinality() != 3 {
+		t.Fatalf("cardinality = %d, want 3", c2.Cardinality())
+	}
+}
