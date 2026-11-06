@@ -35,23 +35,27 @@ func New(constrs ...Constr) *Problem {
 				lits[j] = -lits[j]
 			}
 		}
-		var coeffs []int
+		coeffs := make([]int, len(lits))
 		if len(constr.Coeffs) != 0 {
-			coeffs = make([]int, len(constr.Coeffs))
 			copy(coeffs, constr.Coeffs)
+		} else {
+			for j := range coeffs {
+				coeffs[j] = 1
+			}
 		}
-		if constr.Weight != 0 { // Soft constraint: add blocking literal
+		// Normalize first (negative coeffs flip their lit and raise the
+		// bound): the blocking lit must weigh the normalized bound, so that
+		// setting it alone satisfies the constraint.
+		c := solver.GtEq(lits, coeffs, constr.AtLeast)
+		if constr.Weight != 0 && c.AtLeast > 0 { // Soft constraint: add blocking literal
 			pb.varInts = append(pb.varInts, "") // Create new blocking lit
 			bl := len(pb.varInts)
 			pb.blockWeights[bl] = constr.Weight
 			pb.maxWeight += constr.Weight
-			lits = append(lits, bl)
-			if coeffs != nil { // If this is a clause, there is no explicit coeff
-				// TODO: deal with card constraints: AtLeast !=1 but coeffs == nil!
-				coeffs = append(coeffs, constr.AtLeast)
-			}
+			c.Lits = append(c.Lits, bl)
+			c.Weights = append(c.Weights, c.AtLeast)
 		}
-		clauses[i] = solver.GtEq(lits, coeffs, constr.AtLeast)
+		clauses[i] = c
 	}
 	optLits := make([]solver.Lit, 0, len(pb.blockWeights))
 	optWeights := make([]int, 0, len(pb.blockWeights))
