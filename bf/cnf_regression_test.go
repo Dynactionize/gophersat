@@ -22,7 +22,7 @@ func TestNestedOrAndOrAnd(t *testing.T) {
 	}
 }
 
-var names = []string{"a", "b", "c", "d", "e", "f"}
+var names = []string{"a", "b", "c", "d", "e", "f", "g", "h", "i"}
 
 // randFormula builds a random formula of the given depth over names, using
 // every connective of the package.

@@ -17,6 +17,10 @@ func formulaVars(f Formula) []string {
 			set[f.name] = true
 		case lit:
 			set[f.v.name] = true
+		case unique:
+			for _, v := range f {
+				set[v.name] = true
+			}
 		case not:
 			rec(f[0])
 		case and:

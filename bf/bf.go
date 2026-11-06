@@ -174,6 +174,8 @@ func (n not) nnf() Formula {
 			subs[i] = not{sub}.nnf()
 		}
 		return and(subs).nnf()
+	case unique:
+		return not{uniqueSmall(f...)}.nnf()
 	case trueConst:
 		return False
 	case falseConst:
@@ -309,13 +311,40 @@ func Xor(f1, f2 Formula) Formula {
 }
 
 // Unique indicates exactly one of the given variables must be true.
-// It might create dummy variables to reduce the number of generated clauses.
+// When it is a top-level conjunct of the formula given to Solve or Dimacs,
+// it is encoded with dummy variables to reduce the number of generated
+// clauses; elsewhere (e.g. under a negation or in a disjunction, where that
+// encoding would be unsound) it is encoded pairwise.
 func Unique(vars ...string) Formula {
-	vars2 := make([]variable, len(vars))
+	vars2 := make(unique, len(vars))
 	for i, v := range vars {
 		vars2[i] = pbVar(v)
 	}
-	return uniqueRec(vars2...)
+	return vars2
+}
+
+// unique is an exactly-one constraint over problem vars.
+type unique []variable
+
+// nnf expands u pairwise, without dummy vars, so that the result is valid
+// in any context (see asCnf for the top-level case).
+func (u unique) nnf() Formula {
+	return uniqueSmall(u...).nnf()
+}
+
+// String returns the pairwise expansion of u, as earlier versions did.
+func (u unique) String() string {
+	return uniqueSmall(u...).String()
+}
+
+func (u unique) Eval(model map[string]bool) bool {
+	nb := 0
+	for _, v := range u {
+		if v.Eval(model) {
+			nb++
+		}
+	}
+	return nb == 1
 }
 
 // uniqueSmall generates clauses indicating exactly one of the given variables is true.
@@ -435,8 +464,28 @@ func (cnf *cnf) solve() map[string]bool {
 // asCnf returns a CNF representation of the given formula.
 func asCnf(f Formula) *cnf {
 	vars := vars{all: make(map[variable]int), pb: make(map[variable]int)}
-	clauses := cnfRec(f.nnf(), &vars)
+	var clauses [][]int
+	for _, conj := range topConjuncts(f, nil) {
+		if u, ok := conj.(unique); ok {
+			// A top-level, positive Unique: the compact encoding, whose dummy
+			// vars are defined by equivalences, is valid here and only here.
+			clauses = append(clauses, cnfRec(uniqueRec(u...).nnf(), &vars)...)
+		} else {
+			clauses = append(clauses, cnfRec(conj.nnf(), &vars)...)
+		}
+	}
 	return &cnf{vars: vars, clauses: clauses}
+}
+
+// topConjuncts appends to acc the conjuncts of f, flattening nested ands.
+func topConjuncts(f Formula, acc []Formula) []Formula {
+	if a, ok := f.(and); ok {
+		for _, sub := range a {
+			acc = topConjuncts(sub, acc)
+		}
+		return acc
+	}
+	return append(acc, f)
 }
 
 // transforms the f NNF formula into a CNF formula.
