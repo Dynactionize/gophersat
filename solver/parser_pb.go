@@ -201,6 +201,10 @@ func (pb *Problem) parsePBOptim(fields []string, line string) error {
 }
 
 func (pb *Problem) parsePBLine(line string) error {
+	line = strings.TrimSpace(line)
+	if line == "" {
+		return nil
+	}
 	if line[len(line)-1] != ';' {
 		return fmt.Errorf("line %q does not end with semicolon", line)
 	}
@@ -309,13 +313,19 @@ func (pb *Problem) parseTerms(terms []string, line string) (weights []int, lits 
 	return weights, lits, nil
 }
 
+// MaxLineLen is the length of the longest line accepted by the line-based
+// parsers (OPB here, WCNF and CNF in the maxsat and explain packages).
+const MaxLineLen = 1 << 30
+
 // ParseOPB parses a file corresponding to the OPB syntax.
 // See http://www.cril.univ-artois.fr/PB16/format.pdf for more details.
 func ParseOPB(f io.Reader) (*Problem, error) {
 	scanner := bufio.NewScanner(f)
+	// Constraints and objectives with many terms make long lines.
+	scanner.Buffer(make([]byte, 0, 64*1024), MaxLineLen)
 	var pb Problem
 	for scanner.Scan() {
-		line := scanner.Text()
+		line := strings.TrimSpace(scanner.Text())
 		if line == "" || line[0] == '*' {
 			continue
 		}
