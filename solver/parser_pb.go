@@ -13,6 +13,15 @@ import (
 // Will panic if a zero value appears in the literals.
 func ParseCardConstrs(constrs []CardConstr) *Problem {
 	var pb Problem
+	// Count every var, including those of skipped (trivially satisfied)
+	// constraints, so that the model covers all the caller's vars.
+	for _, constr := range constrs {
+		for _, val := range constr.Lits {
+			if v := max(val, -val); v > pb.NbVars {
+				pb.NbVars = v
+			}
+		}
+	}
 	for _, constr := range constrs {
 		card := constr.AtLeast
 		if card <= 0 { // Clause is trivially SAT, ignore
