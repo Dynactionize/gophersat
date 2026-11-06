@@ -80,7 +80,29 @@ func (pb *Problem) appendClause(constr PBConstr) {
 	for j, val := range constr.Lits {
 		lits[j] = IntToLit(int32(val))
 	}
-	pb.Clauses = append(pb.Clauses, NewPBClause(lits, constr.Weights, constr.AtLeast))
+	pb.Clauses = append(pb.Clauses, newConstraint(lits, constr.Weights, constr.AtLeast))
+}
+
+// newConstraint returns the clause for sum(weights[i]*lits[i]) >= card, with
+// card > 0 and sum(weights) > card. When all weights are equal, the
+// constraint is a cardinality constraint (or a plain clause): it is built as
+// such, since those are propagated much more cheaply than general PB
+// constraints.
+func newConstraint(lits []Lit, weights []int, card int) *Clause {
+	w := 1
+	if len(weights) > 0 {
+		w = weights[0]
+	}
+	for _, wi := range weights {
+		if wi != w {
+			return NewPBClause(lits, weights, card)
+		}
+	}
+	// w*sum(lits) >= card  <=>  sum(lits) >= ceil(card/w)
+	if card = (card + w - 1) / w; card == 1 {
+		return NewClause(lits)
+	}
+	return NewCardClause(lits, card)
 }
 
 // coeffsFit returns true iff 2*sum(|weights|) + |rhs| fits in an int. This
@@ -276,7 +298,7 @@ func (pb *Problem) parsePBConstrLine(fields []string, line string) error {
 			for j, val := range constr.Lits {
 				lits[j] = IntToLit(int32(val))
 			}
-			pb.Clauses = append(pb.Clauses, NewPBClause(lits, constr.Weights, card))
+			pb.Clauses = append(pb.Clauses, newConstraint(lits, constr.Weights, card))
 		}
 	}
 	return nil
