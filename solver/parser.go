@@ -105,11 +105,18 @@ func readInt(b *byte, r *bufio.Reader) (res int, err error) {
 		}
 		res = 10*res + int(*b-'0')
 		*b, err = r.ReadByte()
-		if isSpace(*b) {
+		if err == nil && isSpace(*b) {
 			break
 		}
 	}
 	res *= neg
+	if err == io.EOF {
+		// The int ended with the input: it is still a valid value. Report
+		// EOF on the next call, and don't let the caller see the last digit
+		// again as the current byte.
+		*b = ' '
+		return res, nil
+	}
 	return res, err
 }
 
@@ -123,12 +130,12 @@ func parseHeader(r *bufio.Reader) (nbVars, nbClauses int, err error) {
 		return 0, 0, fmt.Errorf("invalid syntax %q in header", line)
 	}
 	nbVars, err = strconv.Atoi(fields[1])
-	if err != nil {
-		return 0, 0, fmt.Errorf("nbvars not an int : %q", fields[1])
+	if err != nil || nbVars < 0 {
+		return 0, 0, fmt.Errorf("nbvars not a non-negative int : %q", fields[1])
 	}
 	nbClauses, err = strconv.Atoi(fields[2])
-	if err != nil {
-		return 0, 0, fmt.Errorf("nbClauses not an int : '%s'", fields[2])
+	if err != nil || nbClauses < 0 {
+		return 0, 0, fmt.Errorf("nbClauses not a non-negative int : %q", fields[2])
 	}
 	return nbVars, nbClauses, nil
 }
@@ -141,8 +148,12 @@ func ParseCNF(f io.Reader) (*Problem, error) {
 		pb        Problem
 	)
 	b, err := r.ReadByte()
+parse:
 	for err == nil {
 		switch b {
+		case ' ', '\t', '\n', '\r': // Blank between clauses
+		case '%': // SATLIB files end with a "%" line followed by garbage
+			break parse
 		case 'c': // Ignore comment
 			b, err = r.ReadByte()
 			for err == nil && b != '\n' {
@@ -181,7 +192,7 @@ func ParseCNF(f io.Reader) (*Problem, error) {
 		}
 		b, err = r.ReadByte()
 	}
-	if err != io.EOF {
+	if err != nil && err != io.EOF {
 		return nil, err
 	}
 	pb.simplify2()
