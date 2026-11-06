@@ -91,7 +91,7 @@ func (s *Solver) watchClause(c *Clause) {
 	if c.PseudoBoolean() {
 		s.watchPB(c)
 	} else if card := c.Cardinality(); card > 1 {
-		if card == c.Len()+1 {
+		if card == c.Len()-1 {
 			s.watchCardAMO(c, card)
 		} else {
 			// log.Printf("watching cardinality %s", c.PBString())
