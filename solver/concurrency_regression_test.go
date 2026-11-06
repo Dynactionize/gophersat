@@ -2,6 +2,7 @@ package solver
 
 import (
 	"math/rand"
+	"slices"
 	"sync"
 	"testing"
 )
@@ -15,12 +16,15 @@ func random3SAT(seed int64, n int, ratio float64) [][]int {
 	r := rand.New(rand.NewSource(seed))
 	cnf := make([][]int, int(float64(n)*ratio))
 	for i := range cnf {
-		for _, p := range r.Perm(n)[:3] {
-			x := p + 1
-			if r.Intn(2) == 0 {
-				x = -x
+		for len(cnf[i]) < 3 { // 3 distinct vars, by rejection: cheap for large n
+			v := r.Intn(n) + 1
+			if slices.ContainsFunc(cnf[i], func(x int) bool { return x == v || x == -v }) {
+				continue
 			}
-			cnf[i] = append(cnf[i], x)
+			if r.Intn(2) == 0 {
+				v = -v
+			}
+			cnf[i] = append(cnf[i], v)
 		}
 	}
 	return cnf
