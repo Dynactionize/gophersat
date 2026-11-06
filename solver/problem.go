@@ -262,25 +262,23 @@ func (pb *Problem) simplifyCard() {
 			c := pb.Clauses[i]
 			nbLits := c.Len()
 			card := c.Cardinality()
-			clauseSat := false
-			nbSat := 0
+			// Remove bound lits; each true lit lowers the cardinality.
+			// (A true lit used to be counted again and again without moving
+			// on, so a single true lit made the constraint look satisfied.)
 			j := 0
 			for j < nbLits {
 				lit := c.Get(j)
 				if pb.Model[lit.Var()] == 0 {
 					j++
-				} else if (pb.Model[lit.Var()] == 1) == lit.IsPositive() {
-					nbSat++
-					if nbSat == card {
-						clauseSat = true
-						break
-					}
-				} else {
-					nbLits--
-					c.Set(j, c.Get(nbLits))
+					continue
 				}
+				if (pb.Model[lit.Var()] == 1) == lit.IsPositive() {
+					card--
+				}
+				nbLits--
+				c.Set(j, c.Get(nbLits))
 			}
-			if clauseSat {
+			if card <= 0 { // Clause is sat
 				nbClauses--
 				pb.Clauses[i] = pb.Clauses[nbClauses]
 			} else if nbLits < card {
@@ -297,6 +295,9 @@ func (pb *Problem) simplifyCard() {
 			} else { // nb lits unbound > cardinality
 				if c.Len() != nbLits {
 					c.Shrink(nbLits)
+				}
+				if d := card - c.Cardinality(); d != 0 {
+					c.updateCardinality(d)
 				}
 				i++
 			}
