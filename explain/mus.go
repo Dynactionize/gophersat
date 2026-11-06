@@ -75,12 +75,17 @@ func satClause(clause []int, model []bool) bool {
 	return false
 }
 
+// makeMus returns a complete Problem (units included, so that every method
+// can be called on it) made of copies of the given clauses.
 func makeMus(nbVars int, clauses [][]int) *Problem {
 	mus := &Problem{
-		Clauses:   clauses,
+		Clauses:   make([][]int, len(clauses)),
 		NbVars:    nbVars,
 		NbClauses: len(clauses),
 		units:     make([]int, nbVars),
+	}
+	for i, clause := range clauses {
+		mus.Clauses[i] = append([]int(nil), clause...)
 	}
 	for _, clause := range clauses {
 		if len(clause) == 1 {
@@ -119,7 +124,7 @@ func (pb *Problem) MUSInsertion() (mus *Problem, err error) {
 		s.Verbose = pb.Options.Verbose
 		st := s.Solve()
 		if st == solver.Unsat { // Found the MUS
-			return mus, nil
+			return makeMus(mus.NbVars, mus.Clauses), nil
 		}
 		// Add clauses until the problem becomes UNSAT
 		idx := 0
@@ -186,19 +191,15 @@ func (pb *Problem) MUSDeletion() (mus *Problem, err error) {
 			fmt.Printf("c clause %d/%d: removed\n", i+1, pb2.NbClauses)
 		}
 	}
-	mus = &Problem{
-		NbVars: pb.NbVars,
-	}
+	var musClauses [][]int
 	for i, val := range asumptions {
 		if !val.IsPositive() {
 			// Lit is not relaxed, meaning the clause is part of the MUS
 			clause := pb2.Clauses[i]
-			clause = clause[:len(clause)-1] // Remove relax lit
-			mus.Clauses = append(mus.Clauses, clause)
+			musClauses = append(musClauses, clause[:len(clause)-1]) // Remove relax lit
 		}
-		mus.NbClauses = len(mus.Clauses)
 	}
-	return mus, nil
+	return makeMus(pb.NbVars, musClauses), nil
 }
 
 // MUS returns a Minimal Unsatisfiable Subset for the problem.

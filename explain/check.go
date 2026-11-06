@@ -135,15 +135,12 @@ func (pb *Problem) UnsatSubset() (subset *Problem, err error) {
 	} else if err != nil {
 		return nil, fmt.Errorf("could not solve problem: %v", err)
 	}
-	subset = &Problem{
-		NbVars: pb.NbVars,
-	}
+	var clauses [][]int
 	for i, clause := range pb.Clauses {
 		if pb.tagged[i] {
 			// clause was used to prove pb is UNSAT: it's part of the subset
-			subset.Clauses = append(subset.Clauses, clause)
-			subset.NbClauses++
+			clauses = append(clauses, clause)
 		}
 	}
-	return subset, nil
+	return makeMus(pb.NbVars, clauses), nil
 }
