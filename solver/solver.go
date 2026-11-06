@@ -633,8 +633,6 @@ func (s *Solver) Enumerate(models chan []bool, stop chan struct{}) int {
 	}
 	s.lastModel = make(Model, len(s.model))
 	nb := 0
-	var lit Lit
-	var lvl decLevel
 	for s.status != Unsat {
 		for s.status == Indet {
 			s.search()
@@ -650,22 +648,7 @@ func (s *Solver) Enumerate(models chan []bool, stop chan struct{}) int {
 				nb += s.countCurrentModels()
 			}
 			s.status = Indet
-			lits := s.decisionLits()
-			switch len(lits) {
-			case 0:
-				s.status = Unsat
-			case 1:
-				s.propagateUnits(lits)
-			default:
-				c := NewClause(lits)
-				s.appendClause(c)
-				lit = lits[len(lits)-1]
-				v := lit.Var()
-				lvl = abs(s.model[v]) - 1
-				s.cleanupBindings(lvl)
-				s.reason[v] = c // Must do it here because it won't be made by propagateAndSearch
-				s.propagateAndSearch(lit, lvl)
-			}
+			s.blockCurrentModel()
 		}
 	}
 	return nb
@@ -703,8 +686,6 @@ func (s *Solver) CountModels() int {
 		}()
 	}
 	nb := 0
-	var lit Lit
-	var lvl decLevel
 	for s.status != Unsat {
 		for s.status == Indet {
 			s.search()
@@ -719,22 +700,7 @@ func (s *Solver) CountModels() int {
 				fmt.Printf("c found %d model(s)\n", nb)
 			}
 			s.status = Indet
-			lits := s.decisionLits()
-			switch len(lits) {
-			case 0:
-				s.status = Unsat
-			case 1:
-				s.propagateUnits(lits)
-			default:
-				c := NewClause(lits)
-				s.appendClause(c)
-				lit = lits[len(lits)-1]
-				v := lit.Var()
-				lvl = abs(s.model[v]) - 1
-				s.cleanupBindings(lvl)
-				s.reason[v] = c // Must do it here because it won't be made by propagateAndSearch
-				s.propagateAndSearch(lit, lvl)
-			}
+			s.blockCurrentModel()
 		}
 	}
 	if s.Verbose {
@@ -742,6 +708,38 @@ func (s *Solver) CountModels() int {
 		fmt.Printf("c ======================================================================================\n")
 	}
 	return nb
+}
+
+// blockCurrentModel adds a clause forbidding the decisions that led to the
+// current model, then backjumps and asserts the negation of the last decision
+// so that the search continues with the next model.
+func (s *Solver) blockCurrentModel() {
+	lits := s.decisionLits()
+	switch len(lits) {
+	case 0:
+		s.status = Unsat
+	case 1:
+		s.propagateUnits(lits)
+	default:
+		// lits are ordered by decision level. The clause becomes unit on its
+		// last lit, so the two watched lits (positions 0 and 1) must be the
+		// asserted lit and the highest-level other lit: watching lower-level
+		// lits would miss the propagation after a later backjump between
+		// those levels, and the same model would be found again.
+		last := len(lits) - 1
+		lits[0], lits[last] = lits[last], lits[0]
+		if last > 1 {
+			lits[1], lits[last-1] = lits[last-1], lits[1]
+		}
+		c := NewClause(lits)
+		s.appendClause(c)
+		lit := lits[0]
+		v := lit.Var()
+		lvl := abs(s.model[v]) - 1
+		s.cleanupBindings(lvl)
+		s.reason[v] = c // Must do it here because it won't be made by propagateAndSearch
+		s.propagateAndSearch(lit, lvl)
+	}
 }
 
 // decisionLits returns the negation of all decision values once a model was found, ordered by decision levels.
