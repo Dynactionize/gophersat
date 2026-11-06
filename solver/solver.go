@@ -160,6 +160,9 @@ func (s *Solver) newVar(v Var) {
 			s.polarity = append(s.polarity, false)
 			s.reason = append(s.reason, nil)
 			s.trailBuf = append(s.trailBuf, 0)
+			s.assumptions = append(s.assumptions, false)
+			s.pbSetBuf = append(s.pbSetBuf, 0)
+			s.pbSetBuf2 = append(s.pbSetBuf2, 0)
 		}
 		s.varQueue = newQueue(s.activity)
 		s.addVarWatcherList(v)
