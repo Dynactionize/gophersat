@@ -31,6 +31,10 @@ const (
 	bothMasks   uint32 = learnedMask | lockedMask
 )
 
+// MaxCardinality is the largest cardinality (right-hand side of a PB or
+// cardinality constraint) a Clause can hold: it is stored on 30 bits.
+const MaxCardinality = 1 << 30
+
 // NewClause returns a clause whose lits are given as an argument.
 func NewClause(lits []Lit) *Clause {
 	return &Clause{lits: lits}
@@ -40,7 +44,7 @@ func NewClause(lits []Lit) *Clause {
 // for which at least 'card' literals must be true.
 // Note tha NewClause(lits) is equivalent to NewCardClause(lits, 1).
 func NewCardClause(lits []Lit, card int) *Clause {
-	if card < 1 || card > len(lits) {
+	if card < 1 || card > len(lits) || card > MaxCardinality {
 		panic("Invalid cardinality value")
 	}
 	return &Clause{lits: lits, lbdValue: uint32(card - 1)}
@@ -63,7 +67,7 @@ func (wl *weightedLits) Swap(i, j int) {
 
 // NewPBClause returns a pseudo-boolean clause with the given lits, weights and minimal cardinality.
 func NewPBClause(lits []Lit, weights []int, card int) *Clause {
-	if card < 1 {
+	if card < 1 || card > MaxCardinality {
 		panic("Invalid cardinality value")
 	}
 	wl := &weightedLits{lits: lits, weights: weights}

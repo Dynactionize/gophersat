@@ -74,10 +74,59 @@ func (pb *Problem) appendClause(constr PBConstr) {
 	pb.Clauses = append(pb.Clauses, NewPBClause(lits, constr.Weights, constr.AtLeast))
 }
 
+// coeffsFit returns true iff 2*sum(|weights|) + |rhs| fits in an int. This
+// bounds every intermediate sum computed while normalizing and solving the
+// constraint (normalized cardinality, slack, watched weight), which would
+// otherwise silently overflow and give wrong results.
+func coeffsFit(weights []int, rhs int) bool {
+	const limit = math.MaxInt
+	abs := func(x int) (uint64, bool) {
+		if x == math.MinInt {
+			return 0, false
+		}
+		if x < 0 {
+			x = -x
+		}
+		return uint64(x), true
+	}
+	total, ok := abs(rhs)
+	if !ok {
+		return false
+	}
+	for _, w := range weights {
+		aw, ok := abs(w)
+		if !ok {
+			return false
+		}
+		for range 2 {
+			if total > limit-aw {
+				return false
+			}
+			total += aw
+		}
+	}
+	return true
+}
+
+// saturate lowers every weight above card to card. This does not change the
+// constraint's meaning, and bounds all sums of weights.
+func saturate(weights []int, card int) {
+	for i, w := range weights {
+		if w > card {
+			weights[i] = card
+		}
+	}
+}
+
 // ParsePBConstrs parses and returns a PB problem from PBConstr values.
+// It panics if the coefficients of a constraint are so large that their sum
+// overflows an int, or if a normalized cardinality exceeds MaxCardinality.
 func ParsePBConstrs(constrs []PBConstr) *Problem {
 	var pb Problem
 	for _, constr := range constrs {
+		if !coeffsFit(constr.Weights, constr.AtLeast) {
+			panic(fmt.Sprintf("coefficients too large in %v: their sum overflows", constr))
+		}
 		for i := range constr.Lits {
 			lit := IntToLit(int32(constr.Lits[i]))
 			v := lit.Var()
@@ -88,6 +137,13 @@ func ParsePBConstrs(constrs []PBConstr) *Problem {
 		card := constr.AtLeast
 		if card <= 0 { // Clause is trivially SAT, ignore
 			continue
+		}
+		if card > MaxCardinality {
+			panic(fmt.Sprintf("cardinality %d of %v exceeds %d", card, constr, MaxCardinality))
+		}
+		if constr.Weights != nil {
+			constr.Weights = append([]int(nil), constr.Weights...) // don't modify the caller's slice
+			saturate(constr.Weights, card)
 		}
 		sumW := constr.WeightSum()
 		if sumW < card { // Clause cannot be satsfied
@@ -174,6 +230,9 @@ func (pb *Problem) parsePBConstrLine(fields []string, line string) error {
 	if err != nil {
 		return err
 	}
+	if !coeffsFit(weights, rhs) {
+		return fmt.Errorf("coefficients too large in %q: their sum overflows", line)
+	}
 	var constrs []PBConstr
 	if operator == ">=" {
 		constrs = []PBConstr{GtEq(lits, weights, rhs)}
@@ -185,6 +244,10 @@ func (pb *Problem) parsePBConstrLine(fields []string, line string) error {
 		if card <= 0 { // Constraint is trivially satisfied, ignore
 			continue
 		}
+		if card > MaxCardinality {
+			return fmt.Errorf("right-hand side too large in %q: normalized value %d exceeds %d", line, card, MaxCardinality)
+		}
+		saturate(constr.Weights, card)
 		sumW := constr.WeightSum()
 		if sumW < card { // Clause cannot be satsfied
 			pb.Status = Unsat
