@@ -234,7 +234,7 @@ func (p *parser) parseBasic() (f Formula, err error) {
 			if p.eof {
 				return nil, fmt.Errorf("expected identifier, found EOF at %s", p.s.Pos())
 			}
-			if token.Lookup(p.token) != token.IDENT {
+			if !token.IsIdentifier(p.token) {
 				return nil, fmt.Errorf("expected variable name, found %q at %s", p.token, p.s.Pos())
 			}
 			vars = append(vars, p.token)
@@ -248,6 +248,9 @@ func (p *parser) parseBasic() (f Formula, err error) {
 		}
 		p.scan()
 		return Unique(vars...), nil
+	}
+	if !token.IsIdentifier(p.token) {
+		return nil, fmt.Errorf("expected variable name, found %q at %s", p.token, p.s.Pos())
 	}
 	defer p.scan()
 	return Var(p.token), nil
