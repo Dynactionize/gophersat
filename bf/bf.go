@@ -364,29 +364,28 @@ func uniqueSmall(vars ...variable) Formula {
 	return And(res...)
 }
 
-func uniqueRec(vars ...variable) Formula {
+// uniqueRec encodes Unique with dummy line/column vars. nbGroups counts the
+// encodings done so far, to give each one distinct dummy names.
+func uniqueRec(nbGroups *int, vars ...variable) Formula {
 	nbVars := len(vars)
 	if nbVars <= 4 {
 		return uniqueSmall(vars...)
 	}
+	*nbGroups++
+	group := *nbGroups // Dummy names used to embed all var names: O(n) each.
 	sqrt := math.Sqrt(float64(nbVars))
 	nbLines := int(sqrt + 0.5)
 	lines := make([]variable, nbLines)
 	linesF := make([][]Formula, nbLines)
-	allNames := make([]string, len(vars))
-	for i := range vars {
-		allNames[i] = vars[i].name
-	}
-	fullName := strings.Join(allNames, "-")
 	for i := range lines {
-		lines[i] = dummyVar(fmt.Sprintf("line-%d-%s", i, fullName))
+		lines[i] = dummyVar(fmt.Sprintf("unique-%d-line-%d", group, i))
 		linesF[i] = []Formula{}
 	}
 	nbCols := int(math.Ceil(sqrt))
 	cols := make([]variable, nbCols)
 	colsF := make([][]Formula, nbCols)
 	for i := range cols {
-		cols[i] = dummyVar(fmt.Sprintf("col-%d-%s", i, fullName))
+		cols[i] = dummyVar(fmt.Sprintf("unique-%d-col-%d", group, i))
 		colsF[i] = []Formula{}
 	}
 	res := make([]Formula, 0, 2*nbVars+1)
@@ -401,8 +400,8 @@ func uniqueRec(vars ...variable) Formula {
 		res = append(res, Eq(cols[i], Or(colsF[i]...)))
 	}
 
-	res = append(res, uniqueRec(lines...))
-	res = append(res, uniqueRec(cols...))
+	res = append(res, uniqueRec(nbGroups, lines...))
+	res = append(res, uniqueRec(nbGroups, cols...))
 	return And(res...)
 }
 
@@ -465,11 +464,12 @@ func (cnf *cnf) solve() map[string]bool {
 func asCnf(f Formula) *cnf {
 	vars := vars{all: make(map[variable]int), pb: make(map[variable]int)}
 	var clauses [][]int
+	nbGroups := 0
 	for _, conj := range topConjuncts(f, nil) {
 		if u, ok := conj.(unique); ok {
 			// A top-level, positive Unique: the compact encoding, whose dummy
 			// vars are defined by equivalences, is valid here and only here.
-			clauses = append(clauses, cnfRec(uniqueRec(u...).nnf(), &vars)...)
+			clauses = append(clauses, cnfRec(uniqueRec(&nbGroups, u...).nnf(), &vars)...)
 		} else {
 			clauses = append(clauses, cnfRec(conj.nnf(), &vars)...)
 		}

@@ -98,3 +98,23 @@ func TestUniqueInRandomFormulas(t *testing.T) {
 		}
 	}
 }
+
+// Several top-level Uniques over overlapping var sets each get their own
+// dummy vars (names come from a per-conversion counter).
+func TestSeveralTopLevelUniques(t *testing.T) {
+	r := rand.New(rand.NewSource(35))
+	for it := 0; it < 1000; it++ {
+		var conj []Formula
+		for k := r.Intn(4) + 1; k > 0; k-- {
+			var vs []string
+			for _, p := range r.Perm(len(names))[:r.Intn(len(names)-4)+5] { // 5+ vars: dummy encoding
+				vs = append(vs, names[p])
+			}
+			conj = append(conj, Unique(vs...))
+		}
+		if r.Intn(2) == 0 {
+			conj = append(conj, Var(names[r.Intn(len(names))]))
+		}
+		checkSolve(t, And(conj...))
+	}
+}
