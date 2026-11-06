@@ -2,6 +2,8 @@ package solver
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 )
 
 // A Problem is a list of clauses & a nb of vars.
@@ -24,31 +26,36 @@ func (pb *Problem) Optim() bool {
 
 // CNF returns a DIMACS CNF representation of the problem.
 func (pb *Problem) CNF() string {
-	res := fmt.Sprintf("p cnf %d %d\n", pb.NbVars, len(pb.Clauses)+len(pb.Units))
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "p cnf %d %d\n", pb.NbVars, len(pb.Clauses)+len(pb.Units))
 	for _, unit := range pb.Units {
-		res += fmt.Sprintf("%d 0\n", unit.Int())
+		sb.WriteString(strconv.Itoa(int(unit.Int())))
+		sb.WriteString(" 0\n")
 	}
 	for _, clause := range pb.Clauses {
-		res += fmt.Sprintf("%s\n", clause.CNF())
+		clause.writeCNF(&sb)
+		sb.WriteByte('\n')
 	}
-	return res
+	return sb.String()
 }
 
 // PBString returns a representation of the problem as a pseudo-boolean problem.
 func (pb *Problem) PBString() string {
-	res := pb.costFuncString()
+	var sb strings.Builder
+	sb.WriteString(pb.costFuncString())
 	for _, unit := range pb.Units {
 		sign := ""
 		if !unit.IsPositive() {
 			sign = "~"
 			unit = unit.Negation()
 		}
-		res += fmt.Sprintf("1 %sx%d = 1 ;\n", sign, unit.Int())
+		fmt.Fprintf(&sb, "1 %sx%d = 1 ;\n", sign, unit.Int())
 	}
 	for _, clause := range pb.Clauses {
-		res += fmt.Sprintf("%s\n", clause.PBString())
+		sb.WriteString(clause.PBString())
+		sb.WriteByte('\n')
 	}
-	return res
+	return sb.String()
 }
 
 // SetCostFunc sets the function to minimize when optimizing the problem.
@@ -68,7 +75,8 @@ func (pb *Problem) costFuncString() string {
 	if pb.minLits == nil {
 		return ""
 	}
-	res := "min: "
+	var sb strings.Builder
+	sb.WriteString("min: ")
 	for i, lit := range pb.minLits {
 		w := 1
 		if pb.minWeights != nil {
@@ -84,10 +92,10 @@ func (pb *Problem) costFuncString() string {
 			val = -val
 			neg = "~"
 		}
-		res += fmt.Sprintf("%s%d %sx%d", sign, w, neg, val)
+		fmt.Fprintf(&sb, "%s%d %sx%d", sign, w, neg, val)
 	}
-	res += " ;\n"
-	return res
+	sb.WriteString(" ;\n")
+	return sb.String()
 }
 
 func (pb *Problem) updateStatus(nbClauses int) {

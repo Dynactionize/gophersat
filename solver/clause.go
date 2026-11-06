@@ -3,6 +3,7 @@ package solver
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -233,11 +234,18 @@ func (c *Clause) Shrink(newLen int) {
 
 // CNF returns a DIMACS CNF representation of the clause.
 func (c *Clause) CNF() string {
-	res := ""
+	var sb strings.Builder
+	c.writeCNF(&sb)
+	return sb.String()
+}
+
+// writeCNF writes the DIMACS CNF representation of the clause to sb.
+func (c *Clause) writeCNF(sb *strings.Builder) {
 	for _, lit := range c.lits {
-		res += fmt.Sprintf("%d ", lit.Int())
+		sb.WriteString(strconv.Itoa(int(lit.Int())))
+		sb.WriteByte(' ')
 	}
-	return fmt.Sprintf("%s0", res)
+	sb.WriteByte('0')
 }
 
 // PBString returns a string representation of c as a pseudo-boolean expression.
