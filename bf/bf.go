@@ -390,7 +390,9 @@ func (vars *vars) litValue(l lit) int {
 	if !ok {
 		val = len(vars.all) + 1
 		vars.all[l.v] = val
-		vars.pb[l.v] = val
+		if !l.v.dummy { // e.g. the line/col vars of Unique are not problem vars
+			vars.pb[l.v] = val
+		}
 	}
 	if l.signed {
 		return -val
