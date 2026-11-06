@@ -131,15 +131,23 @@ func (pb *Problem) UnsatSubset() (subset *Problem, err error) {
 	s := solver.New(solver.ParseSlice(pb.Clauses))
 	s.Certified = true
 	s.CertChan = make(chan string)
-	status := solver.Unsat
+	var status solver.Status
 	go func() {
 		status = s.Solve()
 		close(s.CertChan)
 	}()
-	if valid, err := pb.UnsatChan(s.CertChan); !valid || status == solver.Sat {
-		return nil, ErrNotUnsat
-	} else if err != nil {
+	valid, err := pb.UnsatChan(s.CertChan)
+	// UnsatChan may return before the solver is done. Drain the channel so
+	// the solver goroutine can finish (instead of blocking forever on a
+	// send), and so that status, written before the channel is closed, can
+	// be read safely.
+	for range s.CertChan {
+	}
+	if err != nil {
 		return nil, fmt.Errorf("could not solve problem: %v", err)
+	}
+	if !valid || status != solver.Unsat {
+		return nil, ErrNotUnsat
 	}
 	var clauses [][]int
 	for i, clause := range pb.Clauses {
