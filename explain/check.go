@@ -66,20 +66,20 @@ func (pb *Problem) UnsatChan(ch chan string) (valid bool, err error) {
 		// Since clause is a logical consequence, append it to the problem
 		pb.Clauses = append(pb.Clauses, clause)
 	}
-
-	// If we did not send any information through the channel
-	// It implies that the problem is trivially unsatisfiable
-	// Since we had only unit clauses inside the channel.
-	return true, nil
+	// The certificate ended without the empty clause: it is a proof only if
+	// unit propagation on the problem and the derived clauses now fails.
+	return unsat(pb, nil), nil
 }
 
-// Unsat will parse a certificate, and return true iff the certificate is valid, i.e iff it makes the problem UNSAT
-// through unit propagation.
+// Unsat will parse a certificate, and return true iff the certificate is valid, i.e iff every clause it contains
+// is RUP (implied by unit propagation) and it ends with the empty clause, or the clauses it derived make the
+// problem UNSAT through unit propagation.
 // If pb.Options.ExtractSubset is true, a subset will also be extracted for that problem.
 func (pb *Problem) Unsat(cert io.Reader) (valid bool, err error) {
 	defer pb.restore()
 	pb.initTagged()
 	sc := bufio.NewScanner(cert)
+	sc.Buffer(make([]byte, 0, 64*1024), solver.MaxLineLen)
 	for sc.Scan() {
 		line := sc.Text()
 		fields := strings.Fields(line)
@@ -97,13 +97,19 @@ func (pb *Problem) Unsat(cert io.Reader) (valid bool, err error) {
 		if !unsat(pb, clause) {
 			return false, nil
 		}
+		if len(clause) == 0 {
+			// The empty clause was derived: the problem is UNSAT.
+			return true, nil
+		}
 		// Since clause is a logical consequence, append it to the problem
 		pb.Clauses = append(pb.Clauses, clause)
 	}
 	if err := sc.Err(); err != nil {
 		return false, fmt.Errorf("could not parse certificate: %v", err)
 	}
-	return true, nil
+	// The certificate ended without the empty clause: it is a proof only if
+	// unit propagation on the problem and the derived clauses now fails.
+	return unsat(pb, nil), nil
 }
 
 // ErrNotUnsat is the error returned when trying to get the MUS or UnsatSubset of a satisfiable problem.
