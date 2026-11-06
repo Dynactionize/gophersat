@@ -97,6 +97,8 @@ type Solver struct {
 	learnBuf   []Lit  // Buffer for lits in learnClause, to reduce allocations. Per solver, so that solvers can run concurrently.
 	metBuf     []bool // Buffer for the met/metLvl flags of learnClause; all false between conflicts
 	metTouched []Var  // Vars whose flags in metBuf were set during the current conflict analysis
+	cpSeen     []bool // Buffer for the "seen" flags of cuttingPlanes; all false between conflicts
+	cpSeenVars []Var  // Vars whose flag in cpSeen is set during the current analysis
 }
 
 // New makes a solver, given a number of variables and a set of clauses.

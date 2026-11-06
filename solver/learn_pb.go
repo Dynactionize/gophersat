@@ -1,5 +1,7 @@
 package solver
 
+import "slices"
+
 // a pbSet is a set representation of a PB constraint.
 // It indicates, for each variable in the problem, what its weight is in the constraint.
 // For instance, in a problem with 5 vars, the lits in constraint 5 x1 +3 ~x2 +2 x4+ x5 >= 6 will be encoded as
@@ -29,8 +31,16 @@ func (s *Solver) pbSet(c *Clause, buffer []int) *pbSet {
 }
 
 func (pb *pbSet) clause() *Clause {
-	lits := make([]Lit, 0, len(pb.weights))
-	weights := make([]int, 0, len(pb.weights))
+	// Allocate exactly: learned constraints are kept, and pb.weights has one
+	// entry per var of the problem.
+	nb := 0
+	for _, w := range pb.weights {
+		if w != 0 {
+			nb++
+		}
+	}
+	lits := make([]Lit, 0, nb)
+	weights := make([]int, 0, nb)
 	for i, w := range pb.weights {
 		if w == 0 {
 			continue
@@ -116,11 +126,29 @@ func (pb *pbSet) falsifies(lit Lit) bool {
 // efficiency in corner cases, such as the pigeonhole problem.
 func (s *Solver) cuttingPlanes(confl *Clause, lvl decLevel) (learned *Clause, propagated []Lit, newLvl decLevel) {
 	// fmt.Printf("conflict at level %d! Constraint is: %s, trail is %s\n", lvl, confl.PBString(), s.trailString())
-	seen := make([]bool, s.nbVars) // Was the var seen in the resolution process, making it a candidate for bumping?
-	s.clauseBumpActivity(confl)
-	for _, lit := range confl.lits {
-		seen[lit.Var()] = true
+	// Vars seen in the resolution process, candidates for bumping. Kept in a
+	// per-solver buffer (only the entries set here are cleared) instead of
+	// allocating nbVars bools per conflict.
+	if len(s.cpSeen) < s.nbVars {
+		s.cpSeen = make([]bool, s.nbVars)
 	}
+	seen := s.cpSeen[:s.nbVars]
+	s.cpSeenVars = s.cpSeenVars[:0]
+	defer func() {
+		for _, v := range s.cpSeenVars {
+			seen[v] = false
+		}
+	}()
+	markSeen := func(lits []Lit) {
+		for _, lit := range lits {
+			if v := lit.Var(); !seen[v] {
+				seen[v] = true
+				s.cpSeenVars = append(s.cpSeenVars, v)
+			}
+		}
+	}
+	s.clauseBumpActivity(confl)
+	markSeen(confl.lits)
 	pb := s.pbSet(confl, s.pbSetBuf)
 	ptr := len(s.trail) - 1
 	for pb.onlyFalsified(s, ptr, lvl) < 0 {
@@ -150,9 +178,7 @@ func (s *Solver) cuttingPlanes(confl *Clause, lvl decLevel) (learned *Clause, pr
 		}
 		s.varBumpActivity(v) // RoundingSAT's strategy: eliminated variables are bumped twice
 		pb.roundToOne(s, v)
-		for _, lit := range reason.lits {
-			seen[lit.Var()] = true
-		}
+		markSeen(reason.lits)
 		s.clauseBumpActivity(reason)
 		pb2 := s.pbSet(reason, s.pbSetBuf2)
 		pb2.roundToOne(s, v)
@@ -168,14 +194,13 @@ func (s *Solver) cuttingPlanes(confl *Clause, lvl decLevel) (learned *Clause, pr
 	unit := pb.onlyFalsified(s, ptr, lvl).Negation()
 	btLvl := pb.backtrackLevel(s, unit)
 	pb.roundToOne(s, unit.Var())
-	for i := range seen {
-		if seen[i] {
-			s.varBumpActivity(Var(i))
-		}
+	slices.Sort(s.cpSeenVars) // bump in var order, as before
+	for _, v := range s.cpSeenVars {
+		s.varBumpActivity(v)
 	}
 	// s.varDecayActivity()
 	// s.clauseDecayActivity()
-	if propagated, learned, ok := pb.clause().SimplifyPB(); !ok {
+	if propagated, learned, ok := pb.clause().simplifyPB(false); !ok {
 		return nil, nil, -1
 	} else if len(propagated) > 0 {
 		return nil, propagated, 1

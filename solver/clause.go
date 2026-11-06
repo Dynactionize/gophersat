@@ -265,6 +265,13 @@ func (c *Clause) PBString() string {
 // It will return a list of unit lits (if any), a new, simplified clause (or nil if all lits can be propagated and/or ignored)
 // and a boolean ok indicating whether the clause can be satisfied or not. If ok is false, other return parameters are irrelevant.
 func (c *Clause) SimplifyPB() (units []Lit, c2 *Clause, ok bool) {
+	return c.simplifyPB(true)
+}
+
+// simplifyPB implements SimplifyPB. If copyLits is false, the returned
+// clause may share c's lits and weights: only use it when c is a temporary
+// clause that won't be used anymore.
+func (c *Clause) simplifyPB(copyLits bool) (units []Lit, c2 *Clause, ok bool) {
 	card := c.Cardinality()
 	thresh := c.WeightSum() - card
 	if thresh < 0 {
@@ -283,11 +290,12 @@ func (c *Clause) SimplifyPB() (units []Lit, c2 *Clause, ok bool) {
 		return units, nil, true
 	}
 	// All lits starting from i must be kept
-	newLen := c.Len() - i
-	newLits := make([]Lit, newLen)
-	newWeights := make([]int, newLen)
-	copy(newLits, c.lits[i:])
-	copy(newWeights, c.pbData.weights[i:])
+	newLits := c.lits[i:]
+	newWeights := c.pbData.weights[i:]
+	if copyLits {
+		newLits = append([]Lit(nil), newLits...)
+		newWeights = append([]int(nil), newWeights...)
+	}
 	// saturate weights so that none is higher than card
 	i = 0
 	for newWeights[i] > card {
