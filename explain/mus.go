@@ -34,7 +34,10 @@ func (pb *Problem) MUSMaxSat() (mus *Problem, err error) {
 	for {
 		cost := s.Minimize()
 		if cost == -1 {
-			return makeMus(nbVars, musClauses), nil
+			// musClauses is unsatisfiable, but as a union of minimal
+			// correction sets it is not necessarily minimal (e.g. for
+			// "1 / -1 / 2 / -2" it holds all 4 clauses): shrink it.
+			return makeMus(nbVars, musClauses).MUSDeletion()
 		}
 		if cost == 0 {
 			return nil, fmt.Errorf("cannot extract MUS from satisfiable problem")
