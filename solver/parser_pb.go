@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"math"
 	"strconv"
 	"strings"
 )
@@ -181,6 +182,9 @@ func (pb *Problem) parsePBConstrLine(fields []string, line string) error {
 	}
 	for _, constr := range constrs {
 		card := constr.AtLeast
+		if card <= 0 { // Constraint is trivially satisfied, ignore
+			continue
+		}
 		sumW := constr.WeightSum()
 		if sumW < card { // Clause cannot be satsfied
 			pb.Status = Unsat
@@ -210,33 +214,32 @@ func (pb *Problem) parseTerms(terms []string, line string) (weights []int, lits 
 		var l string
 		w, err := strconv.Atoi(terms[i])
 		if err != nil {
+			// This should be a weightless lit, i.e a lit with weight 1.
 			l = terms[i]
-			if !strings.HasPrefix(l, "x") && !strings.HasPrefix(l, "~x") {
-				return nil, nil, fmt.Errorf("invalid weight %q in %q: %v", terms[i*2], line, err)
-			}
-			// This is a weightless lit, i.e a lit with weight 1.
 			weights = append(weights, 1)
 		} else {
 			weights = append(weights, w)
 			i++
-			l = terms[i]
-			if !strings.HasPrefix(l, "x") && !strings.HasPrefix(l, "~x") || len(l) < 2 {
-				return nil, nil, fmt.Errorf("invalid variable name %q in %q", l, line)
+			if i == len(terms) {
+				return nil, nil, fmt.Errorf("weight %d without variable in %q", w, line)
 			}
+			l = terms[i]
 		}
-		var lit int
+		name := strings.TrimPrefix(l, "~")
+		if !strings.HasPrefix(name, "x") {
+			return nil, nil, fmt.Errorf("invalid variable name %q in %q", l, line)
+		}
+		v, err := strconv.Atoi(name[1:])
+		if err != nil || v < 1 || v > math.MaxInt32/2 {
+			return nil, nil, fmt.Errorf("invalid variable %q in %q", l, line)
+		}
 		if l[0] == '~' {
-			lit, err = strconv.Atoi(l[2:])
-			lits = append(lits, -lit)
+			lits = append(lits, -v)
 		} else {
-			lit, err = strconv.Atoi(l[1:])
-			lits = append(lits, lit)
+			lits = append(lits, v)
 		}
-		if err != nil {
-			return nil, nil, fmt.Errorf("invalid variable %q in %q: %v", l, line, err)
-		}
-		if lit > pb.NbVars {
-			pb.NbVars = lit
+		if v > pb.NbVars {
+			pb.NbVars = v
 		}
 		i++
 	}

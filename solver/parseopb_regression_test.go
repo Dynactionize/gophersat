@@ -86,7 +86,9 @@ func TestParseOPBRandomVsBruteForce(t *testing.T) {
 				}
 				cs = append(cs, bfConstr{lits, ws, k}, bfConstr{neg, ws, sum - k})
 			} else {
-				k = max(k, 1)
+				if r.Intn(10) == 0 {
+					k = -r.Intn(3) // trivially satisfied
+				}
 				fmt.Fprintf(&sb, ">= %d ;\n", k)
 				cs = append(cs, bfConstr{lits, ws, k})
 			}
