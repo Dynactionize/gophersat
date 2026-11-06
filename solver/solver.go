@@ -778,6 +778,16 @@ func (s *Solver) propagateUnits(units []Lit) {
 		s.lbdStats.addLbd(1)
 		s.Stats.NbUnitLearned++
 		s.cleanupBindings(1)
+		// Propagating an earlier unit may already have bound this one at
+		// top level. Overwriting a false binding would hide the conflict
+		// (and could yield a model violating the problem).
+		switch s.litStatus(unit) {
+		case Unsat:
+			s.status = Unsat
+			return
+		case Sat:
+			continue
+		}
 		s.model[unit.Var()] = lvlToSignedLvl(unit, 1)
 		if s.unifyLiteral(unit, 1) != nil {
 			s.status = Unsat
