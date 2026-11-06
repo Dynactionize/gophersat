@@ -462,8 +462,13 @@ func cnfRec(f Formula, vars *vars) [][]int {
 				d := vars.dummy()
 				lits = append(lits, d)
 				for _, sub2 := range sub {
+					// d -> sub2. sub2 is a lit or an or; for an or, cnfRec
+					// returns the definitional clauses of its nested ands
+					// first and its main disjunction last: only the main
+					// disjunction must be conditioned by d.
 					cnf := cnfRec(sub2, vars)
-					cnf[0] = append(cnf[0], -d)
+					last := len(cnf) - 1
+					cnf[last] = append(cnf[last], -d)
 					res = append(res, cnf...)
 				}
 			default:
