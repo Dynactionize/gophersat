@@ -23,6 +23,9 @@ type Solver struct {
 func (s *Solver) Optimal(results chan solver.Result, stop chan struct{}) solver.Result {
 	if results == nil {
 		res := s.solver.Optimal(nil, stop)
+		if res.Status == solver.Sat {
+			res.Model = res.Model[:s.firstRelax] // Remove relax vars from the model
+		}
 		return res
 	}
 	localRes := make(chan solver.Result)
